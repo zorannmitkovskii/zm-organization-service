@@ -1,0 +1,48 @@
+# Standalone local loop: Postgres + this service, nothing else.
+#
+# Deviation from ORG-01, which asks for postgres + keycloak + iam + org in this
+# file. Keycloak and zm-iam-service already live in zm-local-setup/docker-compose.yml;
+# duplicating them here would guarantee the two definitions drift apart. Use this
+# file for a fast build/run loop (provisioning logs a failure and continues), and
+# zm-local-setup for the full stack where the manifest actually reaches IAM.
+
+services:
+  org-postgres:
+    image: postgres:16-alpine
+    container_name: org_postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    ports:
+      - "${ORG_PG_PORT:-5442}:5432"
+    volumes:
+      - org_pg_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  zm-organization-service:
+    build:
+      context: .
+    container_name: zm_organization_service
+    ports:
+      - "${ORG_PORT:-8484}:8484"
+    environment:
+      - SPRING_PROFILES_ACTIVE=local
+      - SERVER_PORT=8484
+      - DB_URL=jdbc:postgresql://org-postgres:5432/org_db
+      - DB_USER=org_user
+      - DB_PASSWORD=org_pass
+      # No IAM in this compose file — log the provisioning failure and keep
+      # running. Run against zm-local-setup to exercise the real manifest path.
+      - IAM_PROVISIONING_FAILURE_MODE=LOG_AND_CONTINUE
+    depends_on:
+      org-postgres:
+        condition: service_healthy
+
+volumes:
+  org_pg_data:

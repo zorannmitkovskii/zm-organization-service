@@ -1,0 +1,35 @@
+name: CI
+
+# Runs on every push and PR. Unit tests (surefire) and integration tests
+# (failsafe + Testcontainers) both run — the GitHub runner has Docker, so
+# Testcontainers works without extra setup.
+#
+# ORG-01 AC 5 ("changes in other services must not trigger org workflows") is
+# satisfied by repository separation rather than a path filter: this workflow
+# lives in the zm-organization-service repo and can only be triggered by
+# commits to it.
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build + unit tests + integration tests
+        run: mvn -B verify

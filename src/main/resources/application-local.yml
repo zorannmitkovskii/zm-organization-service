@@ -1,0 +1,22 @@
+# Local development profile — the shared Postgres from zm-local-setup.
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/org_db}
+    username: ${DB_USER:org_user}
+    password: ${DB_PASSWORD:org_pass}
+
+  jpa:
+    show-sql: true
+
+iam:
+  provisioning:
+    base-url: ${IAM_BASE_URL:http://localhost:8383}
+    token: ${IAM_PROVISIONING_TOKEN:local-dev-token}
+    # Local dev often runs without a live IAM. Log the failure and keep going
+    # rather than killing the process; test and prod both fail fast.
+    failure-mode: ${IAM_PROVISIONING_FAILURE_MODE:LOG_AND_CONTINUE}
+
+logging:
+  level:
+    org.springframework: INFO
+    zm.organization: DEBUG

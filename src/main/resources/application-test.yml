@@ -1,0 +1,22 @@
+# Test environment profile — the deployed test droplet runs with
+# SPRING_PROFILES_ACTIVE=test, so this file must describe a real running
+# service, not the JUnit context.
+#
+# Integration tests deliberately do NOT use this profile for provisioning
+# settings: they switch it off per-class (see AbstractPostgresIT), because no
+# IAM runs inside the test JVM. Putting iam.provisioning.enabled=false here
+# would silently disable provisioning on the test server too.
+spring:
+  jpa:
+    show-sql: false
+
+iam:
+  provisioning:
+    base-url: ${IAM_BASE_URL:http://ivy-iam:8383}
+    token: ${IAM_PROVISIONING_TOKEN:}
+    failure-mode: ${IAM_PROVISIONING_FAILURE_MODE:FAIL_FAST}
+
+logging:
+  level:
+    root: INFO
+    zm.organization: DEBUG

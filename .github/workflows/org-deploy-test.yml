@@ -1,0 +1,91 @@
+name: Deploy ORG to DigitalOcean (Test)
+
+# Same shape as zm-iam-service/.github/workflows/deploy-test.yml — build the
+# image, push to Docker Hub, SSH into the droplet, docker run against the
+# shared ivy-net and env file.
+#
+# Registry note: ORG-01 asks for GHCR. We use Docker Hub (zmtechlabs/*) to
+# match ivy-events-be and zm-iam-service — a second registry buys nothing here
+# and adds another credential to manage.
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  build-and-push:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: zmtechlabs/zm-organization-service:latest
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    # Manual approval gate. Configure reviewers in:
+    #   Settings → Environments → `test` → Required reviewers.
+    environment: test
+    steps:
+      - name: Deploy ORG (TEST)
+        uses: appleboy/ssh-action@v0.1.9
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: root
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          script: |
+            set -e
+
+            echo "🔧 Ensure ivy-net network exists"
+            docker network inspect ivy-net >/dev/null 2>&1 || docker network create ivy-net
+
+            echo "🗄️ Ensure org_db + org_user exist on shared Postgres"
+            # Idempotent — never touches an existing role/database, only creates
+            # what is missing. psql :'var' substitution does not work inside
+            # DO $$ ... $$ blocks, so both statements use the \gexec pattern.
+            docker exec -i -u postgres "${{ secrets.POSTGRES_CONTAINER || 'zm-postgres' }}" \
+              psql -U postgres -v ON_ERROR_STOP=1 \
+              -v org_user="${{ secrets.ORG_DB_USER || 'org_user' }}" \
+              -v org_password="${{ secrets.ORG_DB_PASSWORD || 'org_pass' }}" \
+              -v org_db="${{ secrets.ORG_DB_NAME || 'org_db' }}" <<'SQL'
+            SELECT format('CREATE ROLE %I WITH LOGIN PASSWORD %L', :'org_user', :'org_password')
+            WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'org_user')\gexec
+
+            SELECT format('CREATE DATABASE %I OWNER %I', :'org_db', :'org_user')
+            WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'org_db')\gexec
+            SQL
+
+            echo "⬇️ Pull latest ORG image"
+            docker pull zmtechlabs/zm-organization-service:latest
+
+            echo "🛑 Stop ORG (test)"
+            docker stop zm-organization-service || true
+
+            echo "🗑 Remove old container (test)"
+            docker rm zm-organization-service || true
+
+            echo "🚀 Start ORG (test)"
+            docker run -d \
+              --name zm-organization-service \
+              --network ivy-net \
+              --env-file /opt/ivy-events/env/org.env \
+              -p 8484:8484 \
+              -e SPRING_PROFILES_ACTIVE=test \
+              -e SERVER_PORT=8484 \
+              zmtechlabs/zm-organization-service:latest
+
+            echo "✅ ORG (test) deployed successfully"

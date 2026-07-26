@@ -1,0 +1,27 @@
+# ---------------------------------------------------------------------------
+# zm-organization-service — IAM provisioning manifest
+# ---------------------------------------------------------------------------
+# Declares the Keycloak state this service needs. Shipped to zm-iam-service by
+# zm-iam-provisioning-client on ApplicationReadyEvent.
+#
+# This service is data-only: it has no end users of its own, so there is no
+# application realm here. The single declaration is the service account it uses
+# to authenticate against other platform services.
+#
+# The zm-services scope rule (ServiceProvisioningManifest#isZmServicesScopeRespected)
+# permits only a client whose clientId is the serviceId suffixed with "-svc".
+#
+# Do NOT write dollar-brace placeholders anywhere in this file, comments
+# included: ManifestLoader interpolates them over the raw file text via
+# System.getenv, and an unset variable fails startup.
+# ---------------------------------------------------------------------------
+
+serviceId: zm-organization-service
+manifestVersion: 1
+
+realms:
+  - name: zm-services
+    clients:
+      - clientId: zm-organization-service-svc
+        type: CONFIDENTIAL
+        serviceAccountsEnabled: true

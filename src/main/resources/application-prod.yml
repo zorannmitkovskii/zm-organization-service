@@ -1,0 +1,22 @@
+# Production profile.
+#
+# Deliberate difference from ivy-events-be's application-prod.yml: every value
+# still resolves to something, and ProvisioningConfigGuard rejects unresolved
+# placeholders at startup. ivy-events-be used bare ${IAM_BASE_URL} here, which
+# bound as a literal string when the variable was missing and killed the boot
+# with "Illegal character in path at index 1" — an error that says nothing
+# about the actual cause.
+spring:
+  jpa:
+    show-sql: false
+
+iam:
+  provisioning:
+    base-url: ${IAM_BASE_URL:http://ivy-iam:8383}
+    token: ${IAM_PROVISIONING_TOKEN:}
+    failure-mode: FAIL_FAST
+
+logging:
+  level:
+    root: INFO
+    zm.organization: INFO
