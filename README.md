@@ -45,12 +45,20 @@ curl http://localhost:8484/actuator/health
 
 Provisioning logs a failure and continues here (`LOG_AND_CONTINUE`), because
 there is no IAM in this compose file. To exercise the real manifest path, run
-the full stack from `zm-local-setup/` instead, which already provides Keycloak
-and `zm-iam-service`:
+the full stack from `zm-local-setup/`, which provides Keycloak and
+`zm-iam-service`:
 
 ```bash
-cd ../zm-local-setup && docker compose up -d zm-organization-service
+cd ../zm-local-setup
+docker compose up -d --build zm-iam-service zm-organization-service
+curl http://localhost:8484/actuator/health
 ```
+
+That stack creates `org_db` through the one-shot `org-db-bootstrap` service
+rather than through `postgres/init/01-init.sql`, because the init script only
+runs when the `pg_data` volume is empty — on a machine that already ran the
+stack, a newly added database would otherwise never appear. The bootstrap step
+is idempotent, so it is safe on every `up`.
 
 Running from an IDE against the shared Postgres:
 
@@ -80,6 +88,14 @@ because that profile also runs the deployed test environment.
 | `IAM_PROVISIONING_TOKEN` | `local-dev-token` (prod/test: none) | Plaintext half of the bootstrap pair |
 | `IAM_PROVISIONING_ENABLED` | `true` | Set `false` where no IAM exists |
 | `IAM_PROVISIONING_FAILURE_MODE` | `FAIL_FAST` (local: `LOG_AND_CONTINUE`) | |
+| `IAM_INTERNAL_ISSUER_URI` | `http://localhost:8181/realms/zm-services` | Token issuer for `/internal/**` |
+| `IAM_INTERNAL_JWK_SET_URI` | *(same realm, `/protocol/openid-connect/certs`)* | Fetched lazily, not at startup |
+| `ORG_TAX_ID_PATTERN` | `^[0-9]{13}$` | Macedonian ЕДБ; change per jurisdiction |
+| `ORG_INVITE_TTL_DAYS` | `7` | Default invite lifetime |
+| `ORG_MEMBERSHIP_CACHE_TTL` | `45` | Seconds; evictions are immediate and exact |
+| `ORG_SEARCH_THRESHOLD` | `0.3` | pg_trgm similarity floor |
+| `ORG_SEARCH_MAX_RESULTS` | `5` | |
+| `ORG_SEARCH_RATE_MAX` / `_WINDOW` | `30` / `60` | Searches per caller per window |
 
 Every property resolves to something, and `ProvisioningConfigGuard` rejects an
 unresolved `${...}` placeholder at startup with a message naming the missing
@@ -94,6 +110,65 @@ Generate the pair with `zm-iam-service/scripts/generate-provisioning-token.sh
 zm-organization-service`. The plaintext goes into this service's environment as
 `IAM_PROVISIONING_TOKEN`; the argon2 hash goes into IAM's environment as
 `IAM_PROVISIONING_TOKEN_ZM_ORGANIZATION_SERVICE`. Never the other way round.
+
+## API
+
+All under `/internal/**` — machine-to-machine. Every call needs a
+client-credentials JWT from the `zm-services` realm carrying the `org-client`
+realm role. `/actuator/health`, `/actuator/info` and `/actuator/prometheus`
+stay open for the container healthcheck and the metrics scraper.
+
+| Method | Path |
+|---|---|
+| `POST` | `/internal/organizations` |
+| `GET` `PATCH` `DELETE` | `/internal/organizations/{id}` |
+| `GET` | `/internal/organizations/search?taxId=` · `?name=&city=&realm=` |
+| `POST` `GET` | `/internal/organizations/{orgId}/locations` |
+| `PATCH` `DELETE` | `/internal/locations/{id}` |
+| `POST` `GET` | `/internal/organizations/{orgId}/members` |
+| `PATCH` `DELETE` | `/internal/members/{id}` |
+| `GET` | `/internal/members/check?orgId=&realm=&userId=` |
+| `POST` | `/internal/organizations/{orgId}/invites` |
+| `POST` | `/internal/invites/claim` |
+
+**Authorisation philosophy.** This service trusts backends: anyone holding
+`org-client` sees every organization. Semantic authorisation — "may this user
+edit that menu" — belongs to the product, which asks
+`/internal/members/check` and decides for itself. Scoping the registry per
+service would defeat the point of having one.
+
+**Membership spans realms.** Each product has its own Keycloak realm, so the
+same person holds a different `userId` in each. Membership is
+`(orgId, realm, userId, role)` — one row per product — and linking a person
+across products happens through an invite code, never account linking. The
+last owner of an organization can be neither removed nor demoted.
+
+**Search masks and throttles.** Contact details come back as `k***@domain` and
+`+389*****456`; results are capped at five and each caller gets a fixed number
+of searches per minute. Search answers questions about organizations the
+caller has no membership in, so both limits are load-bearing.
+
+**Cyrillic and Latin find each other.** `search_name` holds a Latin
+transliteration maintained by the service, and queries are transliterated the
+same way — `панорама скопје` and `panorama skopje` share no trigrams at all
+otherwise.
+
+Three behaviours worth knowing before calling it:
+
+- **`DELETE` on an organization suspends it.** The row stays and `GET` keeps
+  returning it with `status: SUSPENDED`, because products hold `orgId` as a
+  foreign reference. Locations, which nothing outside this service references,
+  are deleted outright.
+- **`PATCH` is partial and cannot clear a field.** A `null` in the payload is
+  indistinguishable from an absent key; send an empty string to clear.
+  `taxId`, `status` and `createdByApp` are not updatable at all.
+- **A duplicate `taxId` returns 409 with `existingOrgId`.** That id is the
+  point: the calling product shows "this company already exists — ask its
+  owner for an invite" instead of creating a duplicate. Uniqueness is enforced
+  by a partial unique index, so concurrent creates resolve to the same answer.
+
+There is no "list all organizations" endpoint. Enumerating the registry is a
+data-leak surface; ORG-05 adds search with masking and rate limiting.
 
 ## Deviations from ORG-01
 

@@ -5,8 +5,17 @@
 # zm-iam-provisioning-client on ApplicationReadyEvent.
 #
 # This service is data-only: it has no end users of its own, so there is no
-# application realm here. The single declaration is the service account it uses
-# to authenticate against other platform services.
+# application realm here.
+#
+# Two declarations:
+#   1. zm-organization-service-svc — the identity this service uses to call
+#      other platform services.
+#   2. the org-client realm role — held by every backend allowed to read or
+#      write the registry. ORG-04 suggested adding it to IAM's self-bootstrap
+#      list, but that is unnecessary: ProvisioningService runs RoleReconciler
+#      for every declared realm, and the zm-services scope rule constrains only
+#      clients. Declaring it here keeps the role's definition next to the
+#      service that owns the meaning of it, and needs no IAM change.
 #
 # The zm-services scope rule (ServiceProvisioningManifest#isZmServicesScopeRespected)
 # permits only a client whose clientId is the serviceId suffixed with "-svc".
@@ -17,10 +26,12 @@
 # ---------------------------------------------------------------------------
 
 serviceId: zm-organization-service
-manifestVersion: 1
+manifestVersion: 2
 
 realms:
   - name: zm-services
+    realmRoles:
+      - org-client
     clients:
       - clientId: zm-organization-service-svc
         type: CONFIDENTIAL

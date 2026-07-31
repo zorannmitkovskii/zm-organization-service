@@ -61,6 +61,30 @@ logging:
     root: INFO
     org.hibernate.SQL: WARN
 
+# ── Domain rules ─────────────────────────────────────────────────────
+organization:
+  tax-id:
+    # Macedonian ЕДБ is 13 digits. Configurable because the registry is
+    # expected to hold companies from other jurisdictions later, and the
+    # format is the only country-specific rule in the service.
+    pattern: ${ORG_TAX_ID_PATTERN:^[0-9]{13}$}
+  invites:
+    default-ttl-days: ${ORG_INVITE_TTL_DAYS:7}
+  search:
+    # pg_trgm similarity below which a name is not considered a match. 0.3 is
+    # pg_trgm's own default and behaves well for two-to-three word business
+    # names; raising it starts dropping legitimate typos.
+    similarity-threshold: ${ORG_SEARCH_THRESHOLD:0.3}
+    max-results: ${ORG_SEARCH_MAX_RESULTS:5}
+    rate-limit:
+      max-per-window: ${ORG_SEARCH_RATE_MAX:30}
+      window-seconds: ${ORG_SEARCH_RATE_WINDOW:60}
+  membership:
+    # Short enough that a revoked member stops passing checks quickly even on a
+    # replica that did not handle the revocation; long enough to absorb the
+    # per-request check traffic. Local evictions are immediate and exact.
+    cache-ttl-seconds: ${ORG_MEMBERSHIP_CACHE_TTL:45}
+
 # ── IAM onboarding ───────────────────────────────────────────────────
 # The service declares what it needs in iam-manifest.yml and ships it to
 # zm-iam-service at startup. No Keycloak Admin API code lives here.
@@ -70,6 +94,13 @@ logging:
 # and only fails much later inside URI.create — ProvisioningConfigGuard turns
 # that into a clear startup error instead.
 iam:
+  # ORG-04 resource server. Callers present a client_credentials token from the
+  # zm-services realm carrying the org-client realm role.
+  security:
+    internal:
+      issuer-uri: ${IAM_INTERNAL_ISSUER_URI:http://localhost:8181/realms/zm-services}
+      jwk-set-uri: ${IAM_INTERNAL_JWK_SET_URI:http://localhost:8181/realms/zm-services/protocol/openid-connect/certs}
+
   provisioning:
     enabled: ${IAM_PROVISIONING_ENABLED:true}
     base-url: ${IAM_BASE_URL:http://localhost:8383}

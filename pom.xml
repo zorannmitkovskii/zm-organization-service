@@ -25,6 +25,8 @@
         <!-- 1.20.x negotiates a Docker API version below the 1.44 minimum that
              Docker Engine 29 enforces, and every call comes back 400. -->
         <testcontainers.version>1.21.4</testcontainers.version>
+        <mapstruct.version>1.6.3</mapstruct.version>
+        <lombok.version>1.18.34</lombok.version>
     </properties>
 
     <dependencyManagement>
@@ -94,6 +96,31 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- MapStruct — entity <-> DTO mapping, including the partial-update
+             semantics PATCH needs (null request fields leave the entity alone). -->
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+            <version>${mapstruct.version}</version>
+        </dependency>
+
+        <!-- Caffeine — membership check cache (ORG-03). Version managed by
+             Spring Boot's dependency management. -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+
+        <!-- ORG-04: JWT resource server for /internal/**. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+
         <!-- IAM onboarding. This service writes zero Keycloak code: the client
              ships iam-manifest.yml to zm-iam-service on ApplicationReadyEvent.
              Served by JitPack from the client's tagged release. -->
@@ -122,6 +149,12 @@
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Awaitility — audit writes are @Async, so assertions poll. -->
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -160,13 +193,29 @@
                     <source>${java.version}</source>
                     <target>${java.version}</target>
                     <parameters>true</parameters>
+                    <!-- Order matters: lombok must run before mapstruct so the
+                         generated getters/setters exist when mappers compile,
+                         and lombok-mapstruct-binding wires the two together. -->
                     <annotationProcessorPaths>
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
-                            <version>1.18.34</version>
+                            <version>${lombok.version}</version>
+                        </path>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok-mapstruct-binding</artifactId>
+                            <version>0.2.0</version>
+                        </path>
+                        <path>
+                            <groupId>org.mapstruct</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>${mapstruct.version}</version>
                         </path>
                     </annotationProcessorPaths>
+                    <compilerArgs>
+                        <arg>-Amapstruct.unmappedTargetPolicy=ERROR</arg>
+                    </compilerArgs>
                 </configuration>
             </plugin>
 
