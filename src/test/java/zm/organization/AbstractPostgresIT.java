@@ -2,7 +2,8 @@ package zm.organization;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
+import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -29,6 +30,14 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = "iam.provisioning.enabled=false")
+/*
+ * Boot 4 no longer hands a @SpringBootTest a TestRestTemplate for free:
+ * TestRestTemplateTestAutoConfiguration is registered under
+ * AutoConfigureTestRestTemplate.imports, so it only applies when a test asks
+ * for it by annotation. Without this the context starts and the injection
+ * fails, which reads like a missing bean rather than a moved default.
+ */
+@AutoConfigureTestRestTemplate
 public abstract class AbstractPostgresIT {
 
     static final PostgreSQLContainer<?> POSTGRES =

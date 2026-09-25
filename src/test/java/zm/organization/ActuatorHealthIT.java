@@ -3,8 +3,9 @@ package zm.organization;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
-import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfigureMetrics;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
+import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.http.ResponseEntity;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -13,12 +14,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  * ORG-01: the endpoints the Docker HEALTHCHECK, the deploy workflow and the
  * metrics scraper depend on must be reachable without authentication.
  *
- * <p>{@code @AutoConfigureObservability} is required because {@code @SpringBootTest}
+ * <p>{@code @AutoConfigureMetrics} is required because {@code @SpringBootTest}
  * sets {@code management.defaults.metrics.export.enabled=false} by default, which
  * removes the Prometheus registry — and with it {@code /actuator/prometheus} —
  * from the test context only. Production configuration is unaffected.
  */
-@AutoConfigureObservability
+@AutoConfigureMetrics
+@AutoConfigureTestRestTemplate
 class ActuatorHealthIT extends AbstractPostgresIT {
 
     @Autowired

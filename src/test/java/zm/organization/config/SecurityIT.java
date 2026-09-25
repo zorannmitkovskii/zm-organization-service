@@ -1,9 +1,9 @@
 package zm.organization.config;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
+import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfigureMetrics;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import zm.organization.AbstractPostgresIT;
@@ -14,12 +14,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * ORG-04 AC1 and AC2, and AC5 for the endpoints that must stay open.
  *
- * <p>{@code @AutoConfigureObservability} is needed for the metrics assertion:
+ * <p>{@code @AutoConfigureMetrics} is needed for the metrics assertion:
  * {@code @SpringBootTest} disables metrics export, which removes
  * {@code /actuator/prometheus} from the test context entirely — it would 404
  * for reasons that have nothing to do with security.
  */
-@AutoConfigureObservability
+@AutoConfigureMetrics
 class SecurityIT extends AbstractPostgresIT {
 
     private static final String SOME_ORG = "/internal/organizations/00000000-0000-0000-0000-000000000000";

@@ -8,7 +8,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.6</version>
+        <version>4.1.1</version>
         <relativePath/>
     </parent>
 
@@ -20,13 +20,13 @@
     <packaging>jar</packaging>
 
     <properties>
-        <java.version>21</java.version>
+        <java.version>25</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- 1.20.x negotiates a Docker API version below the 1.44 minimum that
              Docker Engine 29 enforces, and every call comes back 400. -->
         <testcontainers.version>1.21.4</testcontainers.version>
         <mapstruct.version>1.6.3</mapstruct.version>
-        <lombok.version>1.18.34</lombok.version>
+        <lombok.version>1.18.48</lombok.version>
     </properties>
 
     <dependencyManagement>
@@ -65,6 +65,15 @@
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
+        </dependency>
+<!-- Boot 4 moved FlywayAutoConfiguration out of spring-boot-autoconfigure
+             into its own module. flyway-core on its own is just the library:
+             without this, Boot never builds a Flyway bean and the migrations
+             silently do not run — the application starts happily against
+             whatever schema the database already had. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-flyway</artifactId>
         </dependency>
         <dependency>
             <groupId>org.flywaydb</groupId>
@@ -134,6 +143,34 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Boot 4 moved TestRestTemplate out of spring-boot-test: it now
+             lives in org.springframework.boot.resttestclient, shipped by this
+             module. The starter does not pull it in, so a @SpringBootTest that
+             makes real HTTP calls has to ask for it by name. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-resttestclient</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- ...which in turn needs RestTemplateBuilder: the auto-configuration's
+             bean method takes an ObjectProvider of it, and without the type on
+             the classpath Boot cannot deduce the bean type and the whole
+             context fails to start. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-restclient</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Boot 4 split @AutoConfigureObservability into @AutoConfigureMetrics
+             and a tracing equivalent, each in its own module. These tests
+             assert Prometheus output, so metrics is the half they need. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-metrics-test</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

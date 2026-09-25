@@ -1,6 +1,6 @@
 package zm.organization.search;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -85,7 +85,7 @@ class SearchApiIT extends AbstractPostgresIT {
         assertThat(found.getBody()).isNotEmpty();
         // Containment, not position: the suite shares a database and several
         // seeded organizations legitimately match "панорама".
-        assertThat(found.getBody().findValuesAsText("orgId")).contains(orgId);
+        assertThat(found.getBody().findValuesAsString("orgId")).contains(orgId);
         assertThat(matching(found.getBody(), orgId).get("city").asText()).isEqualTo("Скопје");
     }
 
@@ -98,7 +98,7 @@ class SearchApiIT extends AbstractPostgresIT {
         ResponseEntity<JsonNode> found = search("name=restoran panoramik&realm=menu-app");
 
         assertThat(found.getBody()).isNotEmpty();
-        assertThat(found.getBody().findValuesAsText("orgId")).contains(orgId);
+        assertThat(found.getBody().findValuesAsString("orgId")).contains(orgId);
     }
 
     @Test
@@ -109,7 +109,7 @@ class SearchApiIT extends AbstractPostgresIT {
 
         ResponseEntity<JsonNode> found = search("name=kafeterija mornarica&realm=menu-app");
 
-        assertThat(found.getBody().findValuesAsText("orgId")).contains(orgId);
+        assertThat(found.getBody().findValuesAsString("orgId")).contains(orgId);
     }
 
     @Test
